@@ -17,19 +17,20 @@
  */
 
 var canvas = document.getElementById("main");
-canvas.width  = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width  = window.innerWidth*2;
+canvas.height = window.innerHeight*2;
 
 var gl = canvas.getContext('webgl');
 
 var NUM_METABALLS = 20;
-var WIDTH = window.innerWidth;
-var HEIGHT = window.innerHeight;
+var WIDTH = canvas.width;
+var HEIGHT = canvas.height;
 var NEG_FREQUENCY = 0.3;
 var SPEED = 1;
 var RADIUS = 100;
 var MIN_RADIUS = 50;
 var ITERATIONS = 100;
+var THRESHOLD = 3.1;
 
 /**
  * Shaders
@@ -63,6 +64,7 @@ precision highp float;
 uniform vec4 metaballs[` + NUM_METABALLS + `];
 const float WIDTH = ` + WIDTH + `.0;
 const float HEIGHT = ` + HEIGHT + `.0;
+const float THRESHOLD = ` + THRESHOLD + `;
 const int ITERATIONS = ` + ITERATIONS + `;
 
 
@@ -76,16 +78,13 @@ vec2 iterate(vec2 z, vec2 c) {
 
 vec2 value(vec2 c) {
     vec2 z = vec2(0, 0);
-    vec2 prev = z;
-    int count = 0;
-    for (int i=0; i < ITERATIONS; i++) {
-        z = prev;
-        prev = iterate(z, c);
-        if (length(prev) > 100.0 && count == 0) {
-            count = i;
+    for (int i=1; i <= ITERATIONS; i++) {
+        z = iterate(z, c);
+        if (length(z) > THRESHOLD) {
+           return vec2(i, length(z));
         }
     }
-    return vec2(length(z), count);
+    return vec2(ITERATIONS, length(z));
 }
 
 vec2 map_coord(float x, float y) {
@@ -94,12 +93,60 @@ vec2 map_coord(float x, float y) {
     return scaled;
 }
 
-vec4 map_color(vec2 result) {
-    if (result.x < 100.0) {
-       return vec4(0.0, 0.0, 0.0, 1.0);
+bool isNan( float val )
+{
+  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
+}
+
+float hue2rgb(float p, float q, float t) {
+    if(t < 0.0) t += 1.0;
+    if(t > 1.0) t -= 1.0;
+    if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+    if(t < 1.0/2.0) return q;
+    if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+    return p;
+}
+
+vec4 hslToRgb(vec3 hsl) {
+    // Converted from http://stackoverflow.com/a/9493060/98057
+    float h = hsl.x;
+    float s = hsl.y;
+    float l = hsl.z;
+
+    float r;
+    float g;
+    float b;
+
+    if (s == 0.0) {
+        r = l;
+        g = l;
+        b = l;
+    } else {
+        float q = l * (1.0 + s);
+        if (l >= 0.5) {
+            q = l + s - l * s;
+        }
+
+        float p = 2.0 * l - q;
+        r = hue2rgb(p, q, h + 1.0/3.0);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1.0/3.0);
     }
-    float val = result.y/float(ITERATIONS);
-    return vec4(val, val, val, 1.0);
+
+    return vec4(r, g, b, 1.0);
+}
+
+vec4 map_color(vec2 result) {
+    float escape = result.x;
+    float len = result.y;
+
+    if (escape >= float(ITERATIONS)-0.1) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float frac_result = escape + 1.0 - log(log(float(len)))/log(2.0);
+    float val = frac_result / float(ITERATIONS);
+    return hslToRgb(vec3(val, 1.0, 0.5));
 }
 
 void main(){
