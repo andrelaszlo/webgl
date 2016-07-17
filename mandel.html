@@ -8,13 +8,6 @@
   <body>
     <canvas id="main" width="800" height="450" />
       <script language="javascript">
-/**
- * Part 4 Challenges:
- *
- * - Eliminate the if statement in the fragment shader using step() and mix()
- * - Make the motion of the metaball centers more complex by making
- *   them attracted to one another
- */
 
 var canvas = document.getElementById("main");
 canvas.width  = window.innerWidth*2;
@@ -22,24 +15,11 @@ canvas.height = window.innerHeight*2;
 
 var gl = canvas.getContext('webgl');
 
-var NUM_METABALLS = 20;
 var WIDTH = canvas.width;
 var HEIGHT = canvas.height;
-var NEG_FREQUENCY = 0.3;
-var SPEED = 1;
-var RADIUS = 100;
-var MIN_RADIUS = 50;
-var ITERATIONS = 100;
+var ITERATIONS = 200;
 var THRESHOLD = 3.1;
-
-// x, y, width, height
-var INITIAL = [-2.5, -1.5, 4, 3];
-
-canvas.onclick = function(e) {
-    var x = e.x / window.innerWidth;
-    var y = e.y / window.innerHeight;
-    console.log(x, y);
-}
+var INITIAL_VIEW = {x: -2.5, y:-1.5, width:4.0, height:3.0};
 
 /**
  * Shaders
@@ -70,12 +50,11 @@ void main() {
 
 var fragmentShader = compileShader(`
 precision highp float;
-uniform vec4 metaballs[` + NUM_METABALLS + `];
+uniform vec4 viewport[2];
 const float WIDTH = ` + WIDTH + `.0;
 const float HEIGHT = ` + HEIGHT + `.0;
 const float THRESHOLD = ` + THRESHOLD + `;
 const int ITERATIONS = ` + ITERATIONS + `;
-
 
 vec2 pow2(vec2 z) {
     return vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y);
@@ -97,14 +76,13 @@ vec2 value(vec2 c) {
 }
 
 vec2 map_coord(float x, float y) {
+    float X = viewport[0].x;
+    float Y = viewport[0].y;
+    float W = viewport[0].z;
+    float H = viewport[0].w;
     vec2 normalized = vec2(x/WIDTH, y/HEIGHT);
-    vec2 scaled = vec2(4.0*normalized.x -2.5, 3.0*normalized.y - 1.5);
+    vec2 scaled = vec2(X + W*normalized.x, Y + H*normalized.y);
     return scaled;
-}
-
-bool isNan( float val )
-{
-  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
 }
 
 float hue2rgb(float p, float q, float t) {
@@ -259,23 +237,8 @@ gl.vertexAttribPointer(positionHandle,
  * Simulation setup
  */
 
-var metaballs = [];
+var view = INITIAL_VIEW;
 
-for (var i = 0; i < NUM_METABALLS; i++) {
-  var radius = Math.random() * RADIUS + MIN_RADIUS;
-  var weight = 1;
-  if (Math.random() < NEG_FREQUENCY) {
-    weight = -1;
-  }
-  metaballs.push({
-    x: Math.random() * (WIDTH - 2 * radius) + radius,
-    y: Math.random() * (HEIGHT - 2 * radius) + radius,
-    vx: Math.random() * SPEED - SPEED/2.0,
-    vy: Math.random() * SPEED - SPEED/2.0,
-    r: radius,
-    weight: weight
-  });
-}
 
 /**
  * Uniform setup
@@ -289,54 +252,59 @@ function getUniformLocation(program, name) {
     }
     return uniformLocation;
 }
-var mandelHandle = getUniformLocation(program, 'mandel');
+var mandelHandle = getUniformLocation(program, 'viewport');
 
 /**
  * Simulation step, data transfer, and drawing
  */
 
 var step = function() {
-  // Update positions and speeds
-  for (var i = 0; i < NUM_METABALLS; i++) {
-    var mb = metaballs[i];
-    
-    mb.x += mb.vx;
-    if (mb.x - mb.r < 0) {
-      mb.x = mb.r + 1;
-      mb.vx = Math.abs(mb.vx);
-    } else if (mb.x + mb.r > WIDTH) {
-      mb.x = WIDTH - mb.r;
-      mb.vx = -Math.abs(mb.vx);
-    }
-    mb.y += mb.vy;
-    if (mb.y - mb.r < 0) {
-      mb.y = mb.r + 1;
-      mb.vy = Math.abs(mb.vy);
-    } else if (mb.y + mb.r > HEIGHT) {
-      mb.y = HEIGHT - mb.r;
-      mb.vy = -Math.abs(mb.vy);
-    }
-  }
-  
-  // To send the data to the GPU, we first need to
-  // flatten our data into a single array.
-  var dataToSendToGPU = new Float32Array(4 * NUM_METABALLS);
-  for (var i = 0; i < NUM_METABALLS; i++) {
-    var baseIndex = 4 * i;
-    var mb = metaballs[i];
-    dataToSendToGPU[baseIndex + 0] = mb.x;
-    dataToSendToGPU[baseIndex + 1] = mb.y;
-    dataToSendToGPU[baseIndex + 2] = mb.r;
-    dataToSendToGPU[baseIndex + 3] = mb.weight;
-  }
-  gl.uniform4fv(mandelHandle, dataToSendToGPU);
+    var baseIndex = 0;
+    var dataToSendToGPU = new Float32Array(4);
+    dataToSendToGPU[baseIndex + 0] = view.x;
+    dataToSendToGPU[baseIndex + 1] = view.y;
+    dataToSendToGPU[baseIndex + 2] = view.width;
+    dataToSendToGPU[baseIndex + 3] = view.height;
+    console.log("data to send", dataToSendToGPU, view);
 
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.uniform4fv(mandelHandle, dataToSendToGPU);
 
-  //requestAnimationFrame(step);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
 
 step();
+
+/**
+ * Click handler
+ */
+canvas.onclick = function(e) {
+    var x = e.x / window.innerWidth;
+    var y = -1 * e.y / window.innerHeight;
+    console.log("click coords", x, y);
+
+    var new_view = {
+        x: view.x,
+        y: view.y,
+        width: view.width,
+        height: view.height,
+    }
+
+    // Move coord to re-center the view
+    new_view.x = view.x + x*view.width - view.width/2;
+    new_view.y = view.y + y*view.height + view.height/2;
+
+    var scale = 0.75;
+    // Shrink viewport
+    new_view.width = scale*view.width;
+    new_view.height = scale*view.height;
+
+    // Move coords according to the scaling
+    new_view.x += (1-scale)*view.width/2;
+    new_view.y += (1-scale)*view.height/2;
+
+    view = new_view;
+    step()
+}
 
     </script>
   </body>
