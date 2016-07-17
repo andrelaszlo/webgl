@@ -21,6 +21,10 @@ var HEIGHT = canvas.height;
 var ITERATIONS = 200;
 var THRESHOLD = 3.1;
 var INITIAL_VIEW = {x: -2.5, y:-1.5, width:4.0, height:3.0};
+var MOUSE_LEFT = 0;
+var MOUSE_MIDDLE = 1;
+var MOUSE_RIGHT = 2;
+
 
 /**
  * Shaders
@@ -275,37 +279,63 @@ var step = function() {
 
 step();
 
+function rescale(view, new_view, factor) {
+    // Scale viewport
+    new_view.width = factor*view.width;
+    new_view.height = factor*view.height;
+
+    // Move coords according to the scaling
+    new_view.x += (1-factor)*view.width/2;
+    new_view.y += (1-factor)*view.height/2;
+}
+
+function clone_view() {
+    return {x: view.x, y: view.y, width: view.width, height: view.height};
+}
+
 /**
  * Click handler
  */
-canvas.onclick = function(e) {
+document.body.addEventListener('mousedown', function (e){
+    console.log(e);
     var x = e.x / window.innerWidth;
     var y = -1 * e.y / window.innerHeight;
     console.log("click coords", x, y);
 
-    var new_view = {
-        x: view.x,
-        y: view.y,
-        width: view.width,
-        height: view.height,
-    }
+    var new_view = clone_view();
 
     // Move coord to re-center the view
     new_view.x = view.x + x*view.width - view.width/2;
     new_view.y = view.y + y*view.height + view.height/2;
 
-    var scale = 0.75;
-    // Shrink viewport
-    new_view.width = scale*view.width;
-    new_view.height = scale*view.height;
+    var scale = 1;
+    if (e.button == MOUSE_LEFT) {
+        var scale = 0.75;
+    } else if (e.button == MOUSE_MIDDLE) {
+        var scale = 1.2;
+    }
 
-    // Move coords according to the scaling
-    new_view.x += (1-scale)*view.width/2;
-    new_view.y += (1-scale)*view.height/2;
+    if (e.button != MOUSE_RIGHT) {
+        rescale(view, new_view, scale);
+        view = new_view;
+        requestAnimationFrame(step);
 
+        return false;
+    }
+});
+
+document.addEventListener('mousewheel', function(e) {
+    if (e.deltaY == 0) return;
+    var step_size = 53;
+    var new_view = clone_view();
+    var scale = 1.1 * (e.deltaY / step_size);
+    if (e.deltaY < 0) {
+        scale = -0.90 * (e.deltaY / step_size);
+    }
+    rescale(view, new_view, scale);
     view = new_view;
-    step()
-}
+    requestAnimationFrame(step);
+});
 
     </script>
   </body>
