@@ -9,9 +9,10 @@
     <canvas id="main" width="800" height="450" />
       <script language="javascript">
 
+var oversample = 2;
 var canvas = document.getElementById("main");
-canvas.width  = window.innerWidth*2;
-canvas.height = window.innerHeight*2;
+canvas.width  = window.innerWidth * oversample;
+canvas.height = window.innerHeight * oversample;
 
 var gl = canvas.getContext('webgl');
 
