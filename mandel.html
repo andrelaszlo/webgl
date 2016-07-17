@@ -328,10 +328,11 @@ document.addEventListener('mousewheel', function(e) {
     if (e.deltaY == 0) return;
     var step_size = 53;
     var new_view = clone_view();
-    var scale = 1.1 * (e.deltaY / step_size);
+    var scale = Math.pow(1.1, e.deltaY / step_size);
     if (e.deltaY < 0) {
-        scale = -0.90 * (e.deltaY / step_size);
+        scale = Math.pow(0.90, -1 * e.deltaY / step_size);
     }
+    console.log(scale, e);
     rescale(view, new_view, scale);
     view = new_view;
     requestAnimationFrame(step);
