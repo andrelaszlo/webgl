@@ -32,6 +32,15 @@ var MIN_RADIUS = 50;
 var ITERATIONS = 100;
 var THRESHOLD = 3.1;
 
+// x, y, width, height
+var INITIAL = [-2.5, -1.5, 4, 3];
+
+canvas.onclick = function(e) {
+    var x = e.x / window.innerWidth;
+    var y = e.y / window.innerHeight;
+    console.log(x, y);
+}
+
 /**
  * Shaders
  */
@@ -149,6 +158,33 @@ vec4 map_color(vec2 result) {
     return hslToRgb(vec3(val, 1.0, 0.5));
 }
 
+vec4 map_grayscale(vec2 result) {
+    float escape = result.x;
+    float len = result.y;
+
+    if (escape >= float(ITERATIONS)-0.1) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float frac_result = escape + 1.0 - log(log(float(len)))/log(2.0);
+    float val = frac_result / float(ITERATIONS);
+    return vec4(val, val, val, 1.0);
+}
+
+vec4 map_cyan(vec2 result) {
+    float escape = result.x;
+    float len = result.y;
+
+    if (escape >= float(ITERATIONS)-0.1) {
+        return hslToRgb(vec3(0.6, .9, 0.05));
+    }
+
+    float frac_result = escape + 1.0 - log(log(float(len)))/log(2.0);
+    float val = frac_result / float(ITERATIONS);
+    //return hslToRgb(vec3(0.6, .9, 0.05 + .95*val));
+    return hslToRgb(vec3(0.6, .9, min(1.0, 0.05 + 2.5*val)));
+}
+
 void main(){
     vec2 test = vec2(1.0,1.0) + vec2(1.0,1.0);
     float x = gl_FragCoord.x;
@@ -156,7 +192,9 @@ void main(){
     float v = 0.0;
 
     vec2 result = value(map_coord(x, y));
-    gl_FragColor = map_color(result);
+    //gl_FragColor = map_grayscale(result);
+    //gl_FragColor = map_color(result);
+    gl_FragColor = map_cyan(result);
 }
 `, gl.FRAGMENT_SHADER);
 
@@ -251,7 +289,7 @@ function getUniformLocation(program, name) {
     }
     return uniformLocation;
 }
-var metaballsHandle = getUniformLocation(program, 'metaballs');
+var mandelHandle = getUniformLocation(program, 'mandel');
 
 /**
  * Simulation step, data transfer, and drawing
@@ -291,11 +329,11 @@ var step = function() {
     dataToSendToGPU[baseIndex + 2] = mb.r;
     dataToSendToGPU[baseIndex + 3] = mb.weight;
   }
-  gl.uniform4fv(metaballsHandle, dataToSendToGPU);
+  gl.uniform4fv(mandelHandle, dataToSendToGPU);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-  requestAnimationFrame(step);
+  //requestAnimationFrame(step);
 };
 
 step();
